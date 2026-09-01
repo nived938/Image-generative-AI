@@ -6,10 +6,8 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=gateway node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: NEXT_STAGE_URL
-        sync: false
+        value: https://convertflow-image-stage-02-normalizer.onrender.com
 
   - type: web
     name: convertflow-image-stage-02-normalizer
@@ -18,10 +16,8 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=prompt-normalizer node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: NEXT_STAGE_URL
-        sync: false
+        value: https://convertflow-image-stage-03-safety.onrender.com
 
   - type: web
     name: convertflow-image-stage-03-safety
@@ -30,10 +26,8 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=safety node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: NEXT_STAGE_URL
-        sync: false
+        value: https://convertflow-image-stage-04-prompt.onrender.com
 
   - type: web
     name: convertflow-image-stage-04-prompt
@@ -42,10 +36,8 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=prompt-enhancer node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: NEXT_STAGE_URL
-        sync: false
+        value: https://convertflow-image-stage-05-seed.onrender.com
 
   - type: web
     name: convertflow-image-stage-05-seed
@@ -54,10 +46,8 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=seed-options node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: NEXT_STAGE_URL
-        sync: false
+        value: https://convertflow-image-stage-06-selector.onrender.com
 
   - type: web
     name: convertflow-image-stage-06-selector
@@ -66,12 +56,8 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=provider-selector node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: NEXT_STAGE_URL
-        sync: false
-      - key: IMAGE_PROVIDER
-        value: pollinations
+        value: https://convertflow-image-stage-07-generation.onrender.com
 
   - type: web
     name: convertflow-image-stage-07-generation
@@ -80,12 +66,12 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=generation node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: POLLINATIONS_API_KEY
         sync: false
       - key: POLLINATIONS_IMAGE_MODEL
         value: flux
+      - key: NEXT_STAGE_URL
+        value: https://convertflow-image-stage-08-validator.onrender.com
 
   - type: web
     name: convertflow-image-stage-08-validator
@@ -94,10 +80,8 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=result-validator node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: NEXT_STAGE_URL
-        sync: false
+        value: https://convertflow-image-stage-09-proxy.onrender.com
 
   - type: web
     name: convertflow-image-stage-09-proxy
@@ -106,10 +90,8 @@ services:
     buildCommand: npm install
     startCommand: STAGE_NAME=asset-proxy node src/server.js
     envVars:
-      - key: PIPELINE_SECRET
-        sync: false
       - key: NEXT_STAGE_URL
-        sync: false
+        value: https://convertflow-image-stage-10-callback.onrender.com
 
   - type: web
     name: convertflow-image-stage-10-callback
@@ -117,6 +99,3 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: STAGE_NAME=convertflow-callback node src/server.js
-    envVars:
-      - key: PIPELINE_SECRET
-        sync: false

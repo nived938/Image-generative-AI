@@ -1,0 +1,122 @@
+services:
+  - type: web
+    name: convertflow-image-stage-01-gateway
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=gateway node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: NEXT_STAGE_URL
+        sync: false
+
+  - type: web
+    name: convertflow-image-stage-02-normalizer
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=prompt-normalizer node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: NEXT_STAGE_URL
+        sync: false
+
+  - type: web
+    name: convertflow-image-stage-03-safety
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=safety node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: NEXT_STAGE_URL
+        sync: false
+
+  - type: web
+    name: convertflow-image-stage-04-prompt
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=prompt-enhancer node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: NEXT_STAGE_URL
+        sync: false
+
+  - type: web
+    name: convertflow-image-stage-05-seed
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=seed-options node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: NEXT_STAGE_URL
+        sync: false
+
+  - type: web
+    name: convertflow-image-stage-06-selector
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=provider-selector node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: NEXT_STAGE_URL
+        sync: false
+      - key: IMAGE_PROVIDER
+        value: pollinations
+
+  - type: web
+    name: convertflow-image-stage-07-generation
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=generation node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: POLLINATIONS_API_KEY
+        sync: false
+      - key: POLLINATIONS_IMAGE_MODEL
+        value: flux
+
+  - type: web
+    name: convertflow-image-stage-08-validator
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=result-validator node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: NEXT_STAGE_URL
+        sync: false
+
+  - type: web
+    name: convertflow-image-stage-09-proxy
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=asset-proxy node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false
+      - key: NEXT_STAGE_URL
+        sync: false
+
+  - type: web
+    name: convertflow-image-stage-10-callback
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: STAGE_NAME=convertflow-callback node src/server.js
+    envVars:
+      - key: PIPELINE_SECRET
+        sync: false

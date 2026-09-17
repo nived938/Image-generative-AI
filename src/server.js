@@ -8,7 +8,10 @@ const PORT = Number(process.env.PORT || 10000);
 const STAGE_NAME = process.env.STAGE_NAME || "gateway";
 const NEXT_STAGE_URL = String(process.env.NEXT_STAGE_URL || "").replace(/\/$/, "");
 const PIPELINE_SECRET = process.env.PIPELINE_SECRET || "";
-const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY || "";
+const pollinationsKeys = String(process.env.POLLINATIONS_API_KEYS || process.env.POLLINATIONS_API_KEY || "")
+  .split(",")
+  .map(key => key.trim())
+  .filter(Boolean);
 const POLLINATIONS_IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || "flux";
 
 function validSecret(req) {
@@ -24,6 +27,14 @@ function normalizePrompt(prompt) {
 function enhancePrompt(prompt) {
   return `${prompt}. High quality digital image, coherent composition, clean edges, natural lighting, detailed textures.`;
 }
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+function retryDelay(response) {
+  const header = Number.parseInt(response.headers.get("retry-after") || "", 10);
+  if (Number.isFinite(header) && header >= 0) return Math.min(header * 1000, 15000);
+  return 1500;
+}
 async function next(payload) {
   if (!NEXT_STAGE_URL) return payload;
   const r = await fetch(`${NEXT_STAGE_URL}/process`, {
@@ -33,25 +44,59 @@ async function next(payload) {
   });
   const text = await r.text();
   let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
-  if (!r.ok) throw new Error(data?.message || `Next stage returned ${r.status}`);
+  if (!r.ok) {
+    const error = new Error(data?.message || `Next stage returned ${r.status}`);
+    error.status = r.status;
+    error.retryAfter = r.headers.get("retry-after") || "";
+    throw error;
+  }
   return data;
 }
+async function requestPollinations(url, key) {
+  return fetch(url, { headers: { Authorization: `Bearer ${key}` } });
+}
 async function generateImage(job) {
-  if (!POLLINATIONS_API_KEY) throw new Error("POLLINATIONS_API_KEY is missing on the generation stage.");
+  if (!pollinationsKeys.length) throw new Error("POLLINATIONS_API_KEY is missing on the generation stage.");
   const prompt = encodeURIComponent(job.enhancedPrompt || job.prompt);
   const url = `https://gen.pollinations.ai/image/${prompt}?model=${encodeURIComponent(POLLINATIONS_IMAGE_MODEL)}&width=${job.width}&height=${job.height}&seed=${job.seed}&nologo=true&enhance=true`;
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${POLLINATIONS_API_KEY}` } });
-  if (!r.ok) {
-    const detail = await r.text().catch(() => "");
-    throw new Error(`Pollinations returned ${r.status}${detail ? `: ${detail.slice(0, 500)}` : ""}`);
+  let last429 = null;
+
+  for (let index = 0; index < pollinationsKeys.length; index += 1) {
+    const key = pollinationsKeys[index];
+    let response = await requestPollinations(url, key);
+
+    if (response.status === 429) {
+      const delay = retryDelay(response);
+      last429 = response;
+      if (index < pollinationsKeys.length - 1) continue;
+      if (delay > 0) await sleep(delay);
+      response = await requestPollinations(url, key);
+    }
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      const error = new Error(`Pollinations returned ${response.status}${detail ? `: ${detail.slice(0, 500)}` : ""}`);
+      error.status = response.status;
+      error.retryAfter = response.headers.get("retry-after") || "";
+      throw error;
+    }
+
+    const mime = response.headers.get("content-type") || "image/jpeg";
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length) throw new Error("Pollinations returned an empty image.");
+    return { imageData: `data:${mime};base64,${bytes.toString("base64")}`, mime };
   }
-  const mime = r.headers.get("content-type") || "image/jpeg";
-  const bytes = Buffer.from(await r.arrayBuffer());
-  if (!bytes.length) throw new Error("Pollinations returned an empty image.");
-  return { imageData: `data:${mime};base64,${bytes.toString("base64")}`, mime };
+
+  if (last429) {
+    const error = new Error("Pollinations is rate-limiting the configured image-generation key(s). Use a server-side sk_ key with available Pollen, or configure multiple keys in POLLINATIONS_API_KEYS.");
+    error.status = 429;
+    error.retryAfter = last429.headers.get("retry-after") || "";
+    throw error;
+  }
+  throw new Error("No image provider key is available.");
 }
 
-app.get("/health", (_req, res) => res.json({ ok: true, stage: STAGE_NAME, provider: STAGE_NAME === "generation" ? "pollinations" : "pipeline", nextStageConfigured: Boolean(NEXT_STAGE_URL) }));
+app.get("/health", (_req, res) => res.json({ ok: true, stage: STAGE_NAME, provider: STAGE_NAME === "generation" ? "pollinations" : "pipeline", nextStageConfigured: Boolean(NEXT_STAGE_URL), providerKeysConfigured: pollinationsKeys.length }));
 
 app.post("/generate", async (req, res) => {
   try {
@@ -63,7 +108,9 @@ app.post("/generate", async (req, res) => {
     const job = { ...input, jobId: input.jobId || crypto.randomUUID(), prompt, width: clampInt(input.width, 256, 1024, 1024), height: clampInt(input.height, 256, 1024, 1024), steps: clampInt(input.steps, 1, 8, 4), seed: Number.isInteger(input.seed) ? input.seed : crypto.randomInt(0, 2147483647) };
     return res.json(await next(job));
   } catch (error) {
-    return res.status(500).json({ ok: false, stage: STAGE_NAME, message: error?.message || "Generation failed." });
+    const status = Number(error?.status) || 500;
+    if (error?.retryAfter) res.set("Retry-After", String(error.retryAfter));
+    return res.status(status).json({ ok: false, stage: STAGE_NAME, message: error?.message || "Generation failed." });
   }
 });
 
@@ -103,7 +150,9 @@ app.post("/process", async (req, res) => {
     return res.json({ ok: true, ...(await next(job)) });
   } catch (error) {
     console.error(`[${STAGE_NAME}]`, error);
-    return res.status(500).json({ ok: false, stage: STAGE_NAME, message: error?.message || "Stage failed." });
+    const status = Number(error?.status) || 500;
+    if (error?.retryAfter) res.set("Retry-After", String(error.retryAfter));
+    return res.status(status).json({ ok: false, stage: STAGE_NAME, message: error?.message || "Stage failed." });
   }
 });
 

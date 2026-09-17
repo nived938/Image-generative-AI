@@ -34,7 +34,17 @@ IMAGE_PROVIDER=none
 IMAGE_PROVIDER_URL=
 IMAGE_PROVIDER_API_KEY=
 CONVERTFLOW_CALLBACK_SECRET=change-me
+
+# Generation stage only
+POLLINATIONS_API_KEY=sk_your_server_side_key
+# Optional: comma-separated pool for automatic rotation when a key is rate-limited.
+POLLINATIONS_API_KEYS=sk_key_one,sk_key_two
+POLLINATIONS_IMAGE_MODEL=flux
 ```
+
+The generation stage accepts either `POLLINATIONS_API_KEY` or `POLLINATIONS_API_KEYS`. When the pool variable is present, the service tries keys in order and rotates to the next key when Pollinations returns HTTP 429. It also retries the final key once using the provider's `Retry-After` value (capped at 15 seconds).
+
+For production, use server-side `sk_` Pollinations keys on Render rather than putting provider credentials in the ConvertFlow frontend. Publishable `pk_` keys are intentionally rate-limited by Pollinations, while server-side `sk_` keys are intended for backend use.
 
 Each Render service gets its own `STAGE_NAME`, `NEXT_STAGE_URL`, and the same pipeline secret.
 
